@@ -1,5 +1,4 @@
-
-# Android Ghost Storage Hunter
+# Phantom Purge
 
 A powerful Termux tool to find and remove massive "Other" storage bloat. Optimized for Realme UI, ColorOS, and MT Manager users.
 
@@ -9,7 +8,7 @@ A powerful Termux tool to find and remove massive "Other" storage bloat. Optimiz
 
 Paste this single command into Termux to run the tool instantly:
 
-`command -v curl >/dev/null || pkg install curl -y && curl -sL https://raw.githubusercontent.com/Lysine000/realme-bloat-finder/main/bloat-hunter.sh | bash`
+`command -v curl >/dev/null || pkg install curl -y && curl -sL https://raw.githubusercontent.com/Lysine000/phantom-purge/main/bloat-hunter.sh | bash`
 
 ---
 
