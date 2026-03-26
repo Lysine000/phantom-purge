@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Android Ghost Storage Hunter v1.9 (Fixed) ===${NC}"
+echo -e "${GREEN}=== Android Ghost Storage Hunter v2.0 (Fixed) ===${NC}"
 
 # --- HIGH VISIBILITY WARNING ---
 echo -e "${RED}##################################################${NC}"
@@ -31,11 +31,8 @@ fi
 echo -ne "${YELLOW}[?] Approx how many GB are you hunting? (e.g. 60): ${NC}"
 read GHOST_SIZE < /dev/tty
 
-echo -e "${YELLOW}[*] Scanning for folders/files larger than 1GB...${NC}" 
+echo -e "${YELLOW}[*] Searching for individual FILES larger than 1GB...${NC}" 
 echo -e "${YELLOW}[*] This may take a minute. Please wait...${NC}\n"
-
-# Define critical paths pattern (faster matching)
-CRITICAL_PATTERN="/(Android|DCIM|Pictures)/"
 
 # 2. Function for Manual Deletion with Safety Checks
 manual_delete() {
@@ -46,51 +43,51 @@ manual_delete() {
     echo -e "FOUND: ${RED}$path${NC}"
     echo -e "SIZE:  ${GREEN}$size${NC}"
     
-    # Safety Check for critical folders (optimized matching)
+    # Safety Check for critical folders
     if [[ "$path" =~ (Android|DCIM|Pictures) ]]; then
-        echo -e "${RED}[WARNING] This is a critical system/media folder.${NC}"
+        echo -e "${RED}[WARNING] This file is inside a critical system/media folder.${NC}"
         echo -ne "${YELLOW}[?] Type 'yes' to DELETE or 'n' to SKIP: ${NC}"
         read confirm < /dev/tty
         
         if [[ "$confirm" == "yes" ]]; then
-             rm -rf "$path" 2>/dev/null && echo -e "${GREEN}[OK] Deleted.${NC}" || echo -e "${RED}[!] Error: Permission Denied.${NC}"
+             # Using rm -f because we are exclusively targeting files now
+             rm -f "$path" 2>/dev/null && echo -e "${GREEN}[OK] Deleted.${NC}" || echo -e "${RED}[!] Error: Permission Denied.${NC}"
         else
-            echo -e "${CYAN}[-] Skipped critical folder.${NC}"
+            echo -e "${CYAN}[-] Skipped critical file.${NC}"
         fi
         return 
     fi
 
-    # Deletion Prompt for non-critical items (hidden folders, logs, etc.)
+    # Deletion Prompt for non-critical items
     echo -ne "${YELLOW}[?] Type 'yes' to DELETE or 'n' to SKIP: ${NC}"
     read choice < /dev/tty
     
     if [[ "$choice" == "yes" ]] || [[ "$choice" == "y" ]]; then
-        rm -rf "$path" 2>/dev/null && echo -e "${GREEN}[OK] Deleted.${NC}" || echo -e "${RED}[!] Error: Permission Denied.${NC}"
+        rm -f "$path" 2>/dev/null && echo -e "${GREEN}[OK] Deleted.${NC}" || echo -e "${RED}[!] Error: Permission Denied.${NC}"
     else
         echo -e "${CYAN}[-] Skipped.${NC}"
     fi
 }
 
-# 3. Deep Scan Logic (Optimized for Deep Searching)
-# -d 5 allows it to dig up to 5 folders deep to find the actual large files
-LARGE_ITEMS=$(du -h -d 5 /sdcard/ 2>/dev/null | awk '$1 ~ /[0-9]+(\.[0-9]+)?G/ {print}' | sort -hr)
+# 3. Deep Scan Logic (True File Hunter)
+# We now use 'find' to target actual files (+1G) instead of relying on 'du'
+LARGE_ITEMS=$(find /sdcard/ -type f -size +1G -exec du -h {} + 2>/dev/null | sort -hr)
 
 if [[ -z "$LARGE_ITEMS" ]]; then
-    echo -e "${RED}[!] No folders/files larger than 1GB detected.${NC}"
+    echo -e "${RED}[!] No files larger than 1GB detected.${NC}"
 else
     COUNT=0
     TOTAL=$(echo "$LARGE_ITEMS" | wc -l)
     
-    IFS=$'\n'
-    for item in $LARGE_ITEMS; do
-        # Extract size and path correctly, preserving spaces in the file path
+    # Using a while loop prevents IFS issues from breaking the file paths during deletion
+    while IFS= read -r item; do
+        # read automatically splits the size (first word) from the path (the rest of the string)
         read -r SIZE PATH_NAME <<< "$item"
         
         COUNT=$((COUNT + 1))
         echo -e "${CYAN}[*] Processing [$COUNT/$TOTAL]${NC}"
         manual_delete "$PATH_NAME" "$SIZE"
-    done
-    unset IFS
+    done <<< "$LARGE_ITEMS"
 fi
 
 echo -e "\n${GREEN}Scan complete. If storage is still full, REBOOT your phone.${NC}"
