@@ -28,11 +28,12 @@ When the script finds a file or folder larger than 1GB, it will ask for your per
 
 ---
 
-## Features (v1.9)
+## Features (v3.1)
 
 * **Smart Installation:** Skips the curl installation process if it is already present.
 * **Interactive Hunt:** Prompts for the specific GB amount you are hunting.
-* **Safety Gates:** Requires double-confirmation for critical system and photo directories.
+* **Folder Detection:** Now finds massive directories (like MT Manager's `.recycle`) in addition to files.
+* **Safety Gates:** Requires double-confirmation for critical system and photo directories (DCIM, Android, Pictures).
 * **Hidden Scan:** Finds hidden directories starting with a dot (`.`) that standard system cleaners miss.
 
 ---
