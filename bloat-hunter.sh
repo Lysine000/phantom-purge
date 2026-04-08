@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# === Android Ghost Storage Hunter v4.0 ===
-# Optimized for finding hidden cache and large directories
+# === Android Ghost Storage Hunter v5.0 ===
+# Rebuilt for maximum safety and accurate directory scanning
 
 # Define text colors
 RED='\033[0;31m'
@@ -12,9 +12,12 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
+# Ensure hidden files are caught in globbing
+shopt -s dotglob
+
 clear
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${PURPLE}       Android Ghost Storage Hunter v4.0          ${NC}"
+echo -e "${PURPLE}       Android Ghost Storage Hunter v5.0          ${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # 1. Permission Check
@@ -30,12 +33,10 @@ echo -e "${GREEN}[✓] Storage access confirmed.${NC}"
 
 # 2. Scanning Setup
 SCAN_PATH="/sdcard"
-echo -e "\n${BLUE}[*] Preparing to scan: ${WHITE}${SCAN_PATH}${NC}"
-echo -e "${YELLOW}[!] Note: ${NC}Scanning excludes 'Android/data' (requires root)."
-echo -e "${YELLOW}[!] Note: ${NC}This may take a minute depending on your storage size."
+TEMP_FILE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/ghost_hunt_v5"
 
-# 3. Execution
-echo -ne "\n${CYAN}[*] Hunting for the top 20 offenders... ${NC}"
+echo -e "\n${BLUE}[*] Scanning contents of: ${WHITE}${SCAN_PATH}${NC}"
+echo -e "${YELLOW}[!] Note: ${NC}Analyzing top-level folders and files (including hidden ones)."
 
 # Spinner function for UX
 spinner() {
@@ -52,10 +53,11 @@ spinner() {
     printf "    \b\b\b\b"
 }
 
-# Run du in background and show spinner
-# --exclude excludes the Android folder which is usually inaccessible on newer Android versions
-TEMP_FILE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/ghost_hunt_results"
-(du -ah "$SCAN_PATH" --exclude="$SCAN_PATH/Android" 2>/dev/null | sort -hr | head -n 20 > "$TEMP_FILE") &
+# 3. Accurate Scanning
+echo -ne "\n${CYAN}[*] Hunting for the top 20 offenders... ${NC}"
+
+# Scan exactly one level deep, including files and hidden items
+(du -sh "$SCAN_PATH"/* 2>/dev/null | sort -hr | head -n 20 > "$TEMP_FILE") &
 spinner $!
 
 echo -e "${GREEN}DONE!${NC}"
@@ -66,9 +68,8 @@ printf "${BLUE}%-10s %-s${NC}\n" "SIZE" "PATH"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 if [ ! -s "$TEMP_FILE" ]; then
-    echo -e "${RED}[!] No large items found. Your storage might be genuinely clean!${NC}"
+    echo -e "${RED}[!] No items found. Check your storage permissions.${NC}"
 else
-    # Read the results and format them
     while read -r line; do
         SIZE=$(echo "$line" | awk '{print $1}')
         PATH_NAME=$(echo "$line" | cut -f2-)
@@ -77,13 +78,7 @@ else
         if [[ "$SIZE" == *G* ]]; then
             SIZE_COLOR=$RED
         elif [[ "$SIZE" == *M* ]]; then
-            # Only highlight if > 500M
-            NUM=$(echo "$SIZE" | sed 's/M//')
-            if (( $(echo "$NUM > 500" | bc -l 2>/dev/null || echo 0) )); then
-                SIZE_COLOR=$YELLOW
-            else
-                SIZE_COLOR=$GREEN
-            fi
+            SIZE_COLOR=$YELLOW
         else
             SIZE_COLOR=$GREEN
         fi
@@ -94,47 +89,47 @@ fi
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# 5. Interactive Deletion
-echo -e "\n${YELLOW}[?] Would you like to enter deletion mode? (y/n): ${NC}"
-read -r enter_delete < /dev/tty
+# 5. Strictly Manual Investigation & Deletion
+while true; do
+    echo -e "\n${YELLOW}[?] Enter the EXACT path to investigate (or type 'exit' to quit):${NC}"
+    read -r TARGET_PATH < /dev/tty
 
-if [[ "$enter_delete" =~ ^[Yy]$ ]]; then
-    echo -e "${BLUE}[*] Entering Deletion Mode. Be CAREFUL!${NC}"
-    
-    while read -r line; do
-        SIZE=$(echo "$line" | awk '{print $1}')
-        PATH_NAME=$(echo "$line" | cut -f2-)
+    if [[ "$TARGET_PATH" == "exit" ]]; then
+        break
+    fi
 
-        # Skip the root /sdcard path itself
-        if [[ "$PATH_NAME" == "$SCAN_PATH" ]]; then continue; fi
+    if [[ ! -e "$TARGET_PATH" ]]; then
+        echo -e "${RED}[!] Error: Path does not exist. Copy it exactly from the list above.${NC}"
+        continue
+    fi
 
-        echo -e "\n--------------------------------------------------"
-        echo -e "ITEM: ${RED}$PATH_NAME${NC}"
-        echo -e "SIZE: ${GREEN}$SIZE${NC}"
-        
-        # Safety Gate
-        is_critical=false
-        if [[ "$PATH_NAME" =~ "/DCIM" ]] || [[ "$PATH_NAME" =~ "/Pictures" ]] || [[ "$PATH_NAME" =~ "/Download" ]]; then
-            is_critical=true
-            echo -e "${YELLOW}[!] WARNING: This is a standard media/download folder.${NC}"
-        fi
+    # Preview
+    echo -e "\n${BLUE}━━━━━━━━━━━━ Investigating: $(basename "$TARGET_PATH") ━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}[*] Current Size:${NC} $(du -sh "$TARGET_PATH" | awk '{print $1}')"
+    echo -e "${CYAN}[*] Content Preview:${NC}"
+    if [[ -d "$TARGET_PATH" ]]; then
+        ls -Fh "$TARGET_PATH" | head -n 15
+        echo -e "${BLUE}(Showing first 15 items...)${NC}"
+    else
+        echo -e "${GREEN}This is a single file.${NC}"
+    fi
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-        echo -ne "${PURPLE}[?] Delete this item? (y/n/skip all): ${NC}"
-        read -r choice < /dev/tty
+    # Final Warning
+    echo -ne "${RED}[WARNING] Are you sure you want to completely delete this item and all its contents? (y/n): ${NC}"
+    read -r confirm < /dev/tty
 
-        if [[ "$choice" == "y" ]]; then
-            if rm -rfv "$PATH_NAME"; then
-                echo -e "${GREEN}[✓] Deleted successfully.${NC}"
-            else
-                echo -e "${RED}[!] Failed to delete. (System protected?)${NC}"
-            fi
-        elif [[ "$choice" == "skip" ]]; then
-            break
+    if [[ "$confirm" == "y" ]]; then
+        echo -e "${YELLOW}[*] Deleting...${NC}"
+        if rm -rfv "$TARGET_PATH"; then
+            echo -e "${GREEN}[✓] Successfully deleted.${NC}"
         else
-            echo -e "${CYAN}[-] Skipped.${NC}"
+            echo -e "${RED}[!] Failed to delete. Item might be system-protected.${NC}"
         fi
-    done < "$TEMP_FILE"
-fi
+    else
+        echo -e "${CYAN}[-] Deletion cancelled. Nothing was touched.${NC}"
+    fi
+done
 
-echo -e "\n${GREEN}Thank you for using Ghost Storage Hunter!${NC}"
+echo -e "\n${GREEN}Thank you for using Ghost Storage Hunter! Cleanup complete.${NC}"
 rm "$TEMP_FILE" 2>/dev/null
