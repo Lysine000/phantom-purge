@@ -54,17 +54,18 @@ spinner() {
 
 # Run du in background and show spinner
 # --exclude excludes the Android folder which is usually inaccessible on newer Android versions
-(du -ah "$SCAN_PATH" --exclude="$SCAN_PATH/Android" 2>/dev/null | sort -hr | head -n 20 > /tmp/ghost_hunt_results) &
+TEMP_FILE=$(mktemp)
+(du -ah "$SCAN_PATH" --exclude="$SCAN_PATH/Android" 2>/dev/null | sort -hr | head -n 20 > "$TEMP_FILE") &
 spinner $!
 
 echo -e "${GREEN}DONE!${NC}"
 
 # 4. Display Results
 echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━ TOP 20 OFFENDERS ━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}%-10s %-s${NC}" "SIZE" "PATH"
+printf "${BLUE}%-10s %-s${NC}\n" "SIZE" "PATH"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-if [ ! -s /tmp/ghost_hunt_results ]; then
+if [ ! -s "$TEMP_FILE" ]; then
     echo -e "${RED}[!] No large items found. Your storage might be genuinely clean!${NC}"
 else
     # Read the results and format them
@@ -88,7 +89,7 @@ else
         fi
 
         printf "${SIZE_COLOR}%-10s${NC} %s\n" "$SIZE" "$PATH_NAME"
-    done < /tmp/ghost_hunt_results
+    done < "$TEMP_FILE"
 fi
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -132,8 +133,8 @@ if [[ "$enter_delete" =~ ^[Yy]$ ]]; then
         else
             echo -e "${CYAN}[-] Skipped.${NC}"
         fi
-    done < /tmp/ghost_hunt_results
+    done < "$TEMP_FILE"
 fi
 
 echo -e "\n${GREEN}Thank you for using Ghost Storage Hunter!${NC}"
-rm /tmp/ghost_hunt_results 2>/dev/null
+rm "$TEMP_FILE" 2>/dev/null
