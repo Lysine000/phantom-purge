@@ -14,11 +14,11 @@ Paste this single command into Termux to run the tool instantly:
 
 ## How to Use (Controls)
 
-When the script finds a file or folder larger than 1GB, it will ask for your permission to delete it. Use the following keys:
+The script scans for the top 20 largest folders and files on your storage. Once the scan is complete, you can enter **Deletion Mode** to review each item.
 
-* **Type 'y' or 'yes'**: To permanently delete the item and free up space.
-* **Type 'n' or any other key**: To safely skip the item and move to the next one.
-* **Critical Folders**: If the script detects a system or media folder (like Android, DCIM, or Pictures), it will throw a red `[WARNING]` first and require you to type the full word **'yes'** to confirm deletion.
+* **Type 'y'**: To permanently delete the item and free up space.
+* **Type 'n'**: To safely skip the item and move to the next one.
+* **Type 'skip'**: To exit deletion mode and finish.
 
 ---
 
@@ -28,31 +28,31 @@ When the script finds a file or folder larger than 1GB, it will ask for your per
 
 ---
 
-## Features (v3.1)
+## Features (v4.0)
 
-* **Smart Installation:** Skips the curl installation process if it is already present.
-* **Interactive Hunt:** Prompts for the specific GB amount you are hunting.
-* **Folder Detection:** Now finds massive directories (like MT Manager's `.recycle`) in addition to files.
-* **Safety Gates:** Requires double-confirmation for critical system and photo directories (DCIM, Android, Pictures).
-* **Hidden Scan:** Finds hidden directories starting with a dot (`.`) that standard system cleaners miss.
+* **Permission Check:** Automatically detects and requests Termux storage permissions.
+* **Deep Directory Scan:** Uses `du` (disk usage) to find massive folders filled with thousands of tiny cache files, not just single large files.
+* **Top 20 Offenders:** Outputs a clean, sorted list of the biggest storage hogs so you can see exactly where your space went.
+* **Smart UI:** Color-coded results (Red for GBs, Yellow for large MBs) with a live progress spinner.
+* **Safety Gates:** Warns you if a folder is a standard media directory (DCIM, Pictures, Download).
 
 ---
 
 ## Why is my storage full?
 
-On Android 14/15/16, the "Other" storage category balloons because:
-* **MT Manager:** Moves deleted files to a hidden `/sdcard/MT2/.recycle/` folder.
-* **Media Caches:** WhatsApp/Telegram Sent folders duplicate every video you share.
-* **Thumbnails:** Corrupted system files in the DCIM directory.
+On modern Android versions, the "Other" storage category balloons because of:
+* **MT Manager:** Moves deleted files to hidden recycle bins like `/sdcard/MT2/.recycle/`.
+* **Social Media Cache:** Telegram, WhatsApp, and Discord cache thousands of small media files.
+* **App Thumbnails:** Corrupted or massive thumbnail databases in the DCIM directory.
 
 ---
 
 ## Post-Cleaning Steps
 
 If your system storage settings still show a high number after cleaning:
-1. **Restart your phone:** This forces the system to update its disk index.
-2. **Clear Media Storage:** Go to Settings > Apps > Show System > Media Storage > Clear Data.
-3. **Wait:** Give the OS about 10 minutes to recalculate the actual storage used.
+1. **Restart your phone:** Forces the OS to re-index the disk.
+2. **Clear Media Storage:** Settings > Apps > Show System > Media Storage > Clear Data.
+3. **Wait:** It can take 5-10 minutes for Android to recalculate storage after a big wipe.
 
 ---
 

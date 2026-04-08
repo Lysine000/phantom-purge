@@ -1,106 +1,139 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
+# === Android Ghost Storage Hunter v4.0 ===
+# Optimized for finding hidden cache and large directories
+
 # Define text colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Android Ghost Storage Hunter v3.1 ===${NC}"
+clear
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${PURPLE}       Android Ghost Storage Hunter v4.0          ${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# Check for storage permission
+# 1. Permission Check
+echo -e "${BLUE}[*] Checking storage permissions...${NC}"
 if [ ! -d "/sdcard/Android" ]; then
-    echo -e "${RED}[!] Storage permission not detected. Requesting now...${NC}"
+    echo -e "${YELLOW}[!] Storage access not detected.${NC}"
+    echo -e "${GREEN}[>] Attempting to request permission...${NC}"
     termux-setup-storage
+    echo -e "${RED}[!] Please GRANT permission in the popup and RE-RUN the script.${NC}"
     exit 1
 fi
+echo -e "${GREEN}[✓] Storage access confirmed.${NC}"
 
-echo -ne "${YELLOW}[?] Approx how many GB are you hunting? (e.g. 1): ${NC}"
-read GHOST_SIZE < /dev/tty
+# 2. Scanning Setup
+SCAN_PATH="/sdcard"
+echo -e "\n${BLUE}[*] Preparing to scan: ${WHITE}${SCAN_PATH}${NC}"
+echo -e "${YELLOW}[!] Note: ${NC}Scanning excludes 'Android/data' (requires root)."
+echo -e "${YELLOW}[!] Note: ${NC}This may take a minute depending on your storage size."
 
-# Validate GHOST_SIZE is a number
-if [[ ! "$GHOST_SIZE" =~ ^[0-9]+$ ]]; then
-    echo -e "${RED}[!] Invalid input. Defaulting to 1GB.${NC}"
-    GHOST_SIZE=1
-fi
+# 3. Execution
+echo -ne "\n${CYAN}[*] Hunting for the top 20 offenders... ${NC}"
 
-manual_delete() {
-    local path="$1"
-    local size="$2"
-    local is_critical=false
-
-    # Safety Gates: Check for critical folders (DCIM, Android, etc.)
-    if [[ "$path" =~ "/sdcard/Android" ]] || [[ "$path" =~ "/sdcard/DCIM" ]] || [[ "$path" =~ "/sdcard/Pictures" ]]; then
-        is_critical=true
-    fi
-    
-    echo -e "--------------------------------------------------"
-    if [ "$is_critical" = true ]; then
-        echo -e "${RED}[WARNING] CRITICAL SYSTEM/MEDIA PATH DETECTED!${NC}"
-    fi
-    echo -e "FOUND: ${RED}$path${NC}"
-    echo -e "SIZE:  ${GREEN}$size${NC}"
-    
-    if [ "$is_critical" = true ]; then
-        echo -ne "${YELLOW}[?] Type exactly 'yes' to DELETE or 'n' to SKIP: ${NC}"
-    else
-        echo -ne "${YELLOW}[?] Type 'yes' (or 'y') to DELETE or 'n' to SKIP: ${NC}"
-    fi
-    
-    read choice < /dev/tty
-    
-    local confirmed=false
-    if [ "$is_critical" = true ]; then
-        if [[ "$choice" == "yes" ]]; then confirmed=true; fi
-    else
-        if [[ "$choice" == "yes" ]] || [[ "$choice" == "y" ]]; then confirmed=true; fi
-    fi
-
-    if [ "$confirmed" = true ]; then
-        echo -e "${CYAN}[DEBUG] Attempting raw system delete...${NC}"
-        
-        # -rf handles both files and directories
-        if rm -rfv "$path"; then
-            echo -e "${GREEN}[OK] Termux successfully wiped it.${NC}"
-        else
-            echo -e "${RED}[FATAL] Termux failed to delete the item. See error above.${NC}"
-        fi
-    else
-        echo -e "${CYAN}[-] Skipped.${NC}"
-    fi
+# Spinner function for UX
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
 }
 
-echo -e "${YELLOW}[*] Searching for items larger than ${GHOST_SIZE}GB...${NC}" 
+# Run du in background and show spinner
+# --exclude excludes the Android folder which is usually inaccessible on newer Android versions
+(du -ah "$SCAN_PATH" --exclude="$SCAN_PATH/Android" 2>/dev/null | sort -hr | head -n 20 > /tmp/ghost_hunt_results) &
+spinner $!
 
-# 1. Find large files
-FILES=$(find /sdcard/ -type f -size "+${GHOST_SIZE}G" -exec du -h {} + 2>/dev/null)
+echo -e "${GREEN}DONE!${NC}"
 
-# 2. Find large directories (including hidden ones)
-DIRS=$(du -sh /sdcard/*/ /sdcard/.*/ 2>/dev/null | awk -v size="$GHOST_SIZE" '$1 ~ /G/ { 
-    val = substr($1, 1, length($1)-1); 
-    if (val >= size) print $0 
-}')
+# 4. Display Results
+echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━ TOP 20 OFFENDERS ━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}%-10s %-s${NC}" "SIZE" "PATH"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# Combine and sort results
-LARGE_ITEMS=$(echo -e "$FILES\n$DIRS" | sed '/^$/d' | sort -hr)
-
-if [[ -z "$LARGE_ITEMS" ]]; then
-    echo -e "${RED}[!] No items larger than ${GHOST_SIZE}GB detected.${NC}"
+if [ ! -s /tmp/ghost_hunt_results ]; then
+    echo -e "${RED}[!] No large items found. Your storage might be genuinely clean!${NC}"
 else
-    COUNT=0
-    TOTAL=$(echo "$LARGE_ITEMS" | wc -l)
-    
-    while IFS= read -r item; do
-        # Split size and path, handling paths with spaces
-        SIZE=$(echo "$item" | awk '{print $1}')
-        PATH_NAME=$(echo "$item" | cut -f2-)
+    # Read the results and format them
+    while read -r line; do
+        SIZE=$(echo "$line" | awk '{print $1}')
+        PATH_NAME=$(echo "$line" | cut -f2-)
         
-        # Safety: Prevent accidental root/sdcard deletion
-        if [[ "$PATH_NAME" == "/sdcard/" ]] || [[ -z "$PATH_NAME" ]]; then continue; fi
+        # Color code based on size
+        if [[ "$SIZE" == *G* ]]; then
+            SIZE_COLOR=$RED
+        elif [[ "$SIZE" == *M* ]]; then
+            # Only highlight if > 500M
+            NUM=$(echo "$SIZE" | sed 's/M//')
+            if (( $(echo "$NUM > 500" | bc -l 2>/dev/null || echo 0) )); then
+                SIZE_COLOR=$YELLOW
+            else
+                SIZE_COLOR=$GREEN
+            fi
+        else
+            SIZE_COLOR=$GREEN
+        fi
 
-        COUNT=$((COUNT + 1))
-        echo -e "${CYAN}[*] Processing [$COUNT/$TOTAL]${NC}"
-        manual_delete "$PATH_NAME" "$SIZE"
-    done <<< "$LARGE_ITEMS"
+        printf "${SIZE_COLOR}%-10s${NC} %s\n" "$SIZE" "$PATH_NAME"
+    done < /tmp/ghost_hunt_results
 fi
+
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 5. Interactive Deletion
+echo -e "\n${YELLOW}[?] Would you like to enter deletion mode? (y/n): ${NC}"
+read -r enter_delete < /dev/tty
+
+if [[ "$enter_delete" =~ ^[Yy]$ ]]; then
+    echo -e "${BLUE}[*] Entering Deletion Mode. Be CAREFUL!${NC}"
+    
+    while read -r line; do
+        SIZE=$(echo "$line" | awk '{print $1}')
+        PATH_NAME=$(echo "$line" | cut -f2-)
+
+        # Skip the root /sdcard path itself
+        if [[ "$PATH_NAME" == "$SCAN_PATH" ]]; then continue; fi
+
+        echo -e "\n--------------------------------------------------"
+        echo -e "ITEM: ${RED}$PATH_NAME${NC}"
+        echo -e "SIZE: ${GREEN}$SIZE${NC}"
+        
+        # Safety Gate
+        is_critical=false
+        if [[ "$PATH_NAME" =~ "/DCIM" ]] || [[ "$PATH_NAME" =~ "/Pictures" ]] || [[ "$PATH_NAME" =~ "/Download" ]]; then
+            is_critical=true
+            echo -e "${YELLOW}[!] WARNING: This is a standard media/download folder.${NC}"
+        fi
+
+        echo -ne "${PURPLE}[?] Delete this item? (y/n/skip all): ${NC}"
+        read -r choice < /dev/tty
+
+        if [[ "$choice" == "y" ]]; then
+            if rm -rfv "$PATH_NAME"; then
+                echo -e "${GREEN}[✓] Deleted successfully.${NC}"
+            else
+                echo -e "${RED}[!] Failed to delete. (System protected?)${NC}"
+            fi
+        elif [[ "$choice" == "skip" ]]; then
+            break
+        else
+            echo -e "${CYAN}[-] Skipped.${NC}"
+        fi
+    done < /tmp/ghost_hunt_results
+fi
+
+echo -e "\n${GREEN}Thank you for using Ghost Storage Hunter!${NC}"
+rm /tmp/ghost_hunt_results 2>/dev/null
