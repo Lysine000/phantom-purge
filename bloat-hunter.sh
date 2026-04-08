@@ -54,7 +54,7 @@ spinner() {
 
 # Run du in background and show spinner
 # --exclude excludes the Android folder which is usually inaccessible on newer Android versions
-TEMP_FILE=$(mktemp)
+TEMP_FILE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/ghost_hunt_results"
 (du -ah "$SCAN_PATH" --exclude="$SCAN_PATH/Android" 2>/dev/null | sort -hr | head -n 20 > "$TEMP_FILE") &
 spinner $!
 
